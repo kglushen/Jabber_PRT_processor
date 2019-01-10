@@ -33,36 +33,44 @@ class ProblemReport:
         else:
             raise Exception('Unable to decrypt archive')
 
-    def rename_prt_ios(self) -> None:
+    def get_login_from_metadata(self, metadata: str):
+        for line in metadata.read().decode('utf-16').splitlines():
+            try:
+                login = line.split(',')[-1]
+                final_name = login + '_' + str(time.time()) + '.zip'
+                print(final_name)
+                return final_name
+            except UnicodeDecodeError:
+                print('Unable to find username in metadata file. Please check', self.prt)
+                return None
 
+    def get_login_from_allconfig(self, ptr_zip):
+        for file_name in ptr_zip.namelist():
+            if 'jabberAllConfig' in file_name:
+                with ptr_zip.open(file_name, 'r') as all_config:
+                    for line in all_config:
+                        if 'suggestedusername' in line.decode('utf-8').lower():
+                            try:
+                                login = re.search(re.compile('suggestedusername>(.*)<'),line.decode('utf-8').lower()).group(1)
+                                final_name = login + '_' + str(time.time()) + '.zip'
+                                return final_name
+                            except AttributeError:
+                                print('Unable to find username in jabberAllConfig.xml file. Please check')
+                                return None
+
+    def rename_prt(self) -> None:
+        print(self.prt)
         with ZipFile(os.path.join(self.prt_folder_path, self.prt)) as ptr_zip:
-            for file_name in ptr_zip.namelist():
-                if 'jabberAllConfig' in file_name:
-                    with ptr_zip.open(file_name, 'r') as all_config:
-                        for line in all_config:
-                            if 'suggestedusername' in line.decode('utf-8').lower():
-                                try:
-                                    login = re.search(re.compile('suggestedusername>(.*)<'),line.decode('utf-8').lower()).group(1)
-                                    final_name = login + '_' + str(time.time()) + '.zip'
-                                    break
-                                except AttributeError:
-                                    print('Unable to find username in jabberAllConfig.xml file. Please check')
-                                    return
-        os.rename(os.path.join(self.prt_folder_path, self.prt), os.path.join(self.prt_folder_path, 'processed', final_name))
+            try:
+                with ptr_zip.open('metadata.txt') as metadata:
+                    final_name = self.get_login_from_metadata(metadata)
+            except KeyError:
+                final_name = self.get_login_from_allconfig(ptr_zip)
 
-
-    def rename_prt_desk_android(self) -> None:
-        with ZipFile(os.path.join(self.prt_folder_path, self.prt)) as ptr_zip:
-            with ptr_zip.open('metadata.txt') as metadata:
-                for line in metadata:
-                    try:
-                        login = line.decode('utf-16').split(',')[-1]
-                        final_name = login + '_' + str(time.time()) + '.zip'
-                        break
-                    except:
-                        print('Unable to find username in metadata file. Please check', self.prt)
-                        return
-        os.rename(os.path.join(self.prt_folder_path, self.prt), os.path.join(self.prt_folder_path, 'processed', final_name))
+        if final_name:
+            os.rename(os.path.join(self.prt_folder_path, self.prt), os.path.join(self.prt_folder_path, 'processed', final_name))
+        else:
+            print('SOMETHING WENT WRONG')
 
 
     def process_prt(self, executer_file: str, key_pass: str):
@@ -70,10 +78,7 @@ class ProblemReport:
         if self.private_key:
             self.prt = self.decrypt_prt(executer_file, key_pass)
 
-        if 'iOS' in self.prt:
-            self.rename_prt_ios()
-        else:
-            self.rename_prt_desk_android()
+        self.rename_prt()
 
 
 def main():
