@@ -1,4 +1,4 @@
-import subprocess, os, platform,re,time
+import subprocess, os, platform, re, time
 from zipfile import ZipFile
 from dataclasses import dataclass
 from typing import Iterator
@@ -15,7 +15,7 @@ class ProblemReport:
         for file in os.listdir(prt_folder_path):
             if os.path.isfile(os.path.join(prt_folder_path, file)):
                 if file[-3:] == 'enc':
-                    yield cls(prt_folder_path, file, os.path.join(prt_folder_path,'private_key.pem'))
+                    yield cls(prt_folder_path, file, os.path.join(prt_folder_path, 'private_key.pem'))
                 elif file[-3:] == 'zip':
                     yield cls(prt_folder_path, file, '')
 
@@ -25,10 +25,12 @@ class ProblemReport:
         decrypt_command = '"{}" --privatekey "{}" --pass "{}"  --encryptionkey "{}" --encryptedfile "{}" --outputfile "{}" --mobile'.format(
             executer_file, self.private_key, key_pass, enc_key, self.prt, output_file_name)
 
-        decryption_result = subprocess.run(decrypt_command, shell=True, stdout=subprocess.PIPE).stdout.decode('utf-8')
-        if 'successful' in decryption_result:
-            os.rename(os.path.join(self.prt_folder_path, self.prt), os.path.join(self.prt_folder_path, 'decrypted', self.prt))
-            os.rename(os.path.join(self.prt_folder_path, enc_key), os.path.join(self.prt_folder_path, 'decrypted', enc_key))
+        subprocess.run(decrypt_command)
+        if os.path.isfile(os.path.join(self.prt_folder_path, output_file_name)):
+            os.rename(os.path.join(self.prt_folder_path, self.prt),
+                      os.path.join(self.prt_folder_path, 'decrypted', self.prt))
+            os.rename(os.path.join(self.prt_folder_path, enc_key),
+                      os.path.join(self.prt_folder_path, 'decrypted', enc_key))
             return output_file_name
         else:
             raise Exception('Unable to decrypt archive')
@@ -38,20 +40,21 @@ class ProblemReport:
             try:
                 login = line.split(',')[-1]
                 final_name = login + '_' + str(time.time()) + '.zip'
-                print(final_name)
                 return final_name
             except UnicodeDecodeError:
                 print('Unable to find username in metadata file. Please check', self.prt)
                 return None
 
-    def get_login_from_allconfig(self, ptr_zip):
+    @staticmethod
+    def get_login_from_allconfig(ptr_zip):
         for file_name in ptr_zip.namelist():
             if 'jabberAllConfig' in file_name:
                 with ptr_zip.open(file_name, 'r') as all_config:
                     for line in all_config:
                         if 'suggestedusername' in line.decode('utf-8').lower():
                             try:
-                                login = re.search(re.compile('suggestedusername>(.*)<'),line.decode('utf-8').lower()).group(1)
+                                login = re.search(re.compile('suggestedusername>(.*)<'),
+                                                  line.decode('utf-8').lower()).group(1)
                                 final_name = login + '_' + str(time.time()) + '.zip'
                                 return final_name
                             except AttributeError:
@@ -59,7 +62,6 @@ class ProblemReport:
                                 return None
 
     def rename_prt(self) -> None:
-        print(self.prt)
         with ZipFile(os.path.join(self.prt_folder_path, self.prt)) as ptr_zip:
             try:
                 with ptr_zip.open('metadata.txt') as metadata:
@@ -68,10 +70,10 @@ class ProblemReport:
                 final_name = self.get_login_from_allconfig(ptr_zip)
 
         if final_name:
-            os.rename(os.path.join(self.prt_folder_path, self.prt), os.path.join(self.prt_folder_path, 'processed', final_name))
+            os.rename(os.path.join(self.prt_folder_path, self.prt),
+                      os.path.join(self.prt_folder_path, 'processed', final_name))
         else:
             print('SOMETHING WENT WRONG')
-
 
     def process_prt(self, executer_file: str, key_pass: str):
 
@@ -95,6 +97,7 @@ def main():
 
     for input_prt in ProblemReport.define_prt(prt_folder_path):
         input_prt.process_prt(executer_file, '12345')
+
 
 if __name__ == '__main__':
     main()
